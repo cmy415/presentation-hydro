@@ -46,14 +46,33 @@ export function apply(ctx: Context) {
             // Use Hydro's native scoreboard (correct ICPC penalty calculation)
             const config: any = { isExport: false, showDisplayName: false, lockAt: ContestModel.isLocked(tdoc) };
             let rows: any[] = [], udict: Record<number, any> = {};
+            let tsdocs: any[] = [];
             try {
                 const result = await ContestModel.getScoreboard.call(this, domainId, tid, config);
                 rows = result[1]; udict = result[2];
             } catch (e) {
                 // Fallback: get raw data if scoreboard not available
-                const tsdocs = await ContestModel.getMultiStatus(domainId, { docId: tdoc._id }).toArray();
+                tsdocs = await ContestModel.getMultiStatus(domainId, { docId: tdoc._id }).toArray();
                 const uids = [...new Set(tsdocs.map((ts: any) => ts.uid))];
                 udict = await UserModel.getList(domainId, uids);
+            }
+
+            // Fetch contestant status for FTS
+            if (!tsdocs || !tsdocs.length) tsdocs = await ContestModel.getMultiStatus(domainId, { docId: tdoc._id }).toArray();
+
+            // Get total submit counts from record collection (reliable, always complete)
+            const submitAgg = await coll.aggregate([
+                { $match: { domainId, contest: tid } },
+                { $group: { _id: { uid: "$uid", pid: "$pid" }, count: { $sum: 1 } } }
+            ]).toArray();
+            const totalSubsMap: Record<number, Record<number, number>> = {};
+            for (const item of submitAgg) {
+                const uid = item._id.uid;
+                const pi = tdoc.pids.indexOf(item._id.pid);
+                if (pi >= 0) {
+                    if (!totalSubsMap[uid]) totalSubsMap[uid] = {};
+                    totalSubsMap[uid][pi] = item.count;
+                }
             }
 
             // Filter: first row is header, skip unranked
@@ -78,12 +97,21 @@ export function apply(ctx: Context) {
                     school: udoc.school || "",
                     solved: parseInt(timeParts[0]) || 0,
                     penalty: timeParts[1] || "0:00",
-                    problems: probCells.map((c: any) => ({
-                        score: c.score || 0,
-                        solved: c.score === 100,
-                        value: c.value || "",
-                        raw: c.raw || null,
-                    })),
+                    problems: probCells.map((c: any, pi: number) => {
+                        const totalSubs = (totalSubsMap[uid] || {})[pi] || 0;
+                        const cv = (c.value || "").replace(/<[^>]+>/g, " ");
+                        const nums = cv.match(/\d+/g);
+                        let cellCount = 0;
+                        if (nums) for (const n of nums) cellCount += parseInt(n);
+                        return {
+                            score: c.score || 0,
+                            solved: c.score === 100,
+                            value: c.value || "",
+                            raw: c.raw || null,
+                            totalSubs,
+                            cellCount,
+                        };
+                    }),
                 };
             });
 
@@ -93,7 +121,6 @@ export function apply(ctx: Context) {
             // FTS
             const pdict = await ProblemModel.getList(domainId, tdoc.pids, true, false);
             const fts: any[] = [];
-            const tsdocs = await ContestModel.getMultiStatus(domainId, { docId: tdoc._id }).toArray();
             for (let pi = 0; pi < tdoc.pids.length; pi++) {
                 const pid = tdoc.pids[pi]; let first: any = null, firstTime = Infinity;
                 for (const ts of tsdocs) {

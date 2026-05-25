@@ -50,14 +50,14 @@ body{font-family:"Helvetica Neue","Helvetica","PingFang SC","Microsoft YaHei",sa
 #view-countdown{justify-content:center;align-items:center;background:radial-gradient(ellipse at center,#111 0%,#000 70%)}
 #view-countdown.active{display:flex}
 .cd-box{text-align:center}
-.cd-phase{font-size:66px;font-weight:700;letter-spacing:9px;margin-bottom:48px;color:#888}
+.cd-phase{font-size:53px;font-weight:700;letter-spacing:7px;margin-bottom:38px;color:#888}
 .cd-phase.running{color:#00e600}.cd-phase.pending{color:#5c8add}.cd-phase.frozen{color:#ffdf36}.cd-phase.ended{color:#c43a24}
 .cd-digits{display:flex;align-items:center;justify-content:center;gap:0}
-.cd-d{font-size:450px;font-weight:900;color:#fff;line-height:1;min-width:510px;text-align:center;font-variant-numeric:tabular-nums}
-.cd-col{font-size:360px;color:#555;font-weight:300;padding-bottom:30px}
+.cd-d{font-size:360px;font-weight:900;color:#fff;line-height:1;min-width:410px;text-align:center;font-variant-numeric:tabular-nums}
+.cd-col{font-size:288px;color:#555;font-weight:300;padding-bottom:30px}
 .cd-lbl{display:flex;justify-content:center;gap:0;margin-top:16px}
-.cd-lbl span{min-width:510px;text-align:center;font-size:42px;color:#666;letter-spacing:4px}
-.cd-contest{font-size:72px;font-weight:700;color:#ccc;margin-top:84px}
+.cd-lbl span{min-width:410px;text-align:center;font-size:34px;color:#666;letter-spacing:4px}
+.cd-contest{font-size:58px;font-weight:700;color:#ccc;margin-top:67px}
 
 #view-fts{justify-content:center;align-items:center;padding:30px}
 #view-fts.active{display:flex}
@@ -125,14 +125,13 @@ var qSeenTimes = {};
 var qDead = {};
 var qSnapCache = {};
 var qInitialized = false;
+var qResultTime = {};
 var QUEUE_TTL = 30000;
 var targetTime = null;
 var phase = "pending";
 var lastUpdate = 0;
 
 var fzSnap = null;
-var fzNewCounts = {};
-var fzSeenIds = {};
 
 function \u0024(id) { return document.getElementById(id); }
 function showView(name) {
@@ -193,7 +192,7 @@ function cellSubCount(p) {
 
 function cloneProbs(probs) {
     return (probs || []).map(function(p) {
-        return { score: p.score, solved: p.solved, value: p.value, raw: p.raw };
+        return { score: p.score, solved: p.solved, value: p.value, raw: p.raw, totalSubs: p.totalSubs, cellCount: p.cellCount };
     });
 }
 
@@ -208,7 +207,7 @@ function parseCell(p) {
     }
     if (v.indexOf("orange") >= 0 || v.indexOf("+") >= 0) {
         var m = v.match(/\+(\d+)/);
-        return "pcell pending|" + (m ? m[1] : "0") + "\u003F|";
+        return "pcell pending|\u003F" + (m ? m[1] : "0") + "|";
     }
     var m2 = v.match(/(\d+)/);
     return "pcell failed|-" + (m2 ? m2[1] : "0") + "|";
@@ -238,10 +237,6 @@ function probHtml(problems, probH, fsSm, hiIdx, isQueue, pendVal, ftsFirst, rowU
     return h;
 }
 
-function fzTotal(key) {
-    return (fzSnap.counts[key] || 0) + (fzNewCounts[key] || 0);
-}
-
 // ===== Scoreboard =====
 function renderScoreboard(d, isFz) {
     var rows = d.scoreboard;
@@ -257,14 +252,16 @@ function renderScoreboard(d, isFz) {
 
     var sbPendMap = {};
     if (isFz && fzSnap) {
-        for (var fk in fzNewCounts) {
-            if (fzNewCounts.hasOwnProperty(fk) && fzNewCounts[fk] > 0) {
-                var parts = fk.split("_");
-                var uid = parseInt(parts[0]);
-                var pi = parseInt(parts[1]);
-                if (!(fzSnap.solved[uid] && fzSnap.solved[uid][pi])) {
-                    if (!sbPendMap[uid]) sbPendMap[uid] = {};
-                    sbPendMap[uid][pi] = fzTotal(fk) || 1;
+        for (var si3 = 0; si3 < rows.length; si3++) {
+            var r3 = rows[si3];
+            for (var pi3 = 0; pi3 < (r3.problems || []).length; pi3++) {
+                var total = (r3.problems[pi3].totalSubs) || 0;
+                var frozenCount = fzSnap.problems[r3.uid] && fzSnap.problems[r3.uid][pi3] ? (fzSnap.problems[r3.uid][pi3].cellCount || 0) : 0;
+                var pv = (r3.problems[pi3].value || "");
+                var isPend = pv.indexOf("orange") >= 0 || pv.indexOf("+") >= 0;
+                if ((total > frozenCount || isPend) && !(fzSnap.solved[r3.uid] && fzSnap.solved[r3.uid][pi3])) {
+                    if (!sbPendMap[r3.uid]) sbPendMap[r3.uid] = {};
+                    sbPendMap[r3.uid][pi3] = total;
                 }
             }
         }
@@ -312,6 +309,9 @@ function renderQueue(d, isFz) {
         var qi = qq[i];
         if (!qSeenTimes[qi.id] && !qDead[qi.id]) { if (qi.isPending) { qSeenTimes[qi.id] = now; } else if (!qInitialized) { qDead[qi.id] = true; } }
         // Snapshot problem cells on first appearance
+        if (!qSeenTimes[qi.id] && qDead[qi.id]) { continue; }
+        if (!qi.isPending && qSeenTimes[qi.id] && !qResultTime[qi.id]) { qResultTime[qi.id] = now; qSeenTimes[qi.id] = now; qSnapCache[qi.id] = cloneProbs(qi.problems); }
+        if (qi.isPending) { delete qResultTime[qi.id]; }
         if (!qSnapCache[qi.id]) qSnapCache[qi.id] = cloneProbs(qi.problems);
     }
     var ks = Object.keys(qSeenTimes);
@@ -319,7 +319,7 @@ function renderQueue(d, isFz) {
         if (now - qSeenTimes[ks[ki]] > QUEUE_TTL) {
             qDead[ks[ki]] = true;
             delete qSeenTimes[ks[ki]];
-            delete qSnapCache[ks[ki]];
+            delete qSnapCache[ks[ki]]; delete qResultTime[ks[ki]];
         }
     }
     var vis = [];
@@ -407,12 +407,7 @@ function renderAll(d) {
     var isFz = phase === "frozen";
 
     if (isFz && !wasFz) {
-        fzSnap = { solved: {}, counts: {}, ranks: {}, problems: {}, fts: d.fts };
-        fzNewCounts = {};
-        fzSeenIds = {};
-        for (var qi = 0; qi < d.queue.length; qi++) {
-            fzSeenIds[d.queue[qi].id] = true;
-        }
+        fzSnap = { solved: {}, ranks: {}, problems: {}, fts: d.fts };
         for (var si = 0; si < d.scoreboard.length; si++) {
             var row = d.scoreboard[si];
             fzSnap.ranks[row.uid] = { rank: row.rank, solved: row.solved, penalty: row.penalty };
@@ -422,39 +417,29 @@ function renderAll(d) {
             for (var pi = 0; pi < probs.length; pi++) {
                 var p = probs[pi];
                 if (p.solved) fzSnap.solved[row.uid][pi] = true;
-                fzSnap.counts[row.uid + "_" + pi] = cellSubCount(p);
+                
             }
         }
     }
 
     if (isFz && fzSnap) {
-        for (var qi2 = 0; qi2 < d.queue.length; qi2++) {
-            var q = d.queue[qi2];
-            if (q.submitProbIdx >= 0 && !fzSeenIds[q.id]) {
-                fzSeenIds[q.id] = true;
-                var key = q.uid + "_" + q.submitProbIdx;
-                if (!(fzSnap.solved[q.uid] && fzSnap.solved[q.uid][q.submitProbIdx])) {
-                    fzNewCounts[key] = (fzNewCounts[key] || 0) + 1;
-                }
-            }
-        }
         for (var si2 = 0; si2 < d.scoreboard.length; si2++) {
             var r2 = d.scoreboard[si2];
             var snap = fzSnap.ranks[r2.uid];
             if (snap) {
                 r2.rank = snap.rank; r2.solved = snap.solved; r2.penalty = snap.penalty;
-                r2.problems = cloneProbs(fzSnap.problems[r2.uid]);
-                var fzp = r2.problems;
-                for (var pi2 = 0; pi2 < fzp.length; pi2++) {
+                for (var pi2 = 0; pi2 < (r2.problems || []).length; pi2++) {
                     if (!(fzSnap.solved[r2.uid] && fzSnap.solved[r2.uid][pi2])) {
-                        fzp[pi2].solved = false;
+                        r2.problems[pi2].solved = false;
                     }
+                    var fzp = fzSnap.problems[r2.uid];
+                    if (fzp && fzp[pi2]) { r2.problems[pi2].cellCount = fzp[pi2].cellCount || 0; }
                 }
             }
         }
     }
 
-    if (!isFz) { fzSnap = null; fzNewCounts = {}; fzSeenIds = {}; }
+    if (!isFz) { fzSnap = null; }
 
     renderScoreboard(d, isFz);
     renderQueue(d, isFz);
