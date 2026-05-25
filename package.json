@@ -1,0 +1,6 @@
+{
+  "name": "@hydrooj/presentation",
+  "version": "0.1.0",
+  "repository": "https://github.com/hydro-dev/Hydro",
+  "description": "Contest presentation with scoreboard, countdown, and judging queue"
+}

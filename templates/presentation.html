@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Presentation</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Helvetica Neue","Helvetica","PingFang SC","Microsoft YaHei",sans-serif;background:#000;color:#fff;width:100vw;height:100vh;overflow:hidden;user-select:none}
+.view{position:absolute;top:0;left:0;width:100%;height:100%;display:none;overflow:hidden}
+.view.active{display:block}
+.title-bar{position:absolute;top:0;left:0;width:100%;z-index:10;background:#000}
+.title-bar-inner{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;height:72px}
+.title-bar .clock{font-size:36px;font-weight:700;min-width:120px}
+.title-bar .title-text{font-size:40px;font-weight:700;text-align:center;flex:1}
+.title-bar .remaining{font-size:36px;font-weight:700;text-align:right;min-width:120px}
+.title-bar-line{height:1px;background:#fff}
+.col-header{display:flex;align-items:center;padding:10px 15px;font-size:24px;font-weight:700;color:#aaa;border-bottom:1px solid rgba(255,255,255,0.15);background:#000}
+.col-header .h-rank{width:64px;text-align:center;flex-shrink:0}
+.col-header .h-team{flex:1;padding-left:48px;min-width:0}
+.col-header .h-solved{width:72px;text-align:center;flex-shrink:0}
+.col-header .h-penalty{width:90px;text-align:center;flex-shrink:0}
+
+.t-row{border-bottom:1px solid rgba(255,255,255,0.04)}
+.t-row:nth-child(odd){background:rgba(255,255,255,0.015)}
+.t-row .tr-top{display:flex;align-items:center;padding:2px 15px 0;font-weight:700}
+.t-row .tr-bot{display:flex;align-items:center;padding:0 15px 2px}
+.t-row .r-rank{width:64px;text-align:center;font-style:italic;flex-shrink:0}
+.t-row .r-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:15px}
+.t-row .r-school{font-size:9px;font-weight:400;color:#999;display:block;line-height:1.1}
+.t-row .r-solved{width:72px;text-align:center;font-style:italic;flex-shrink:0}
+.t-row .r-penalty{width:90px;text-align:center;flex-shrink:0}
+.t-row .r-probs{flex:1;display:flex;align-items:center;gap:4px;min-width:0;margin-left:100px}
+.r-rank.gold{color:#cd7f32}.r-rank.silver{color:#e6e8fa}.r-rank.bronze{color:#a67d3d}
+
+.pcell{display:flex;align-items:center;justify-content:center;border-radius:4px;font-weight:700;text-align:center;overflow:hidden;flex-shrink:1;min-width:36px}
+.pcell .pclabel{line-height:1.1;white-space:pre}
+.pcell.solved{background:#00e600;color:#000}.pcell.solved.first{background:#0a6e0a;color:#fff}
+.pcell.solved.dim{background:rgba(0,100,0,0.6);color:rgba(255,255,255,0.5)}.pcell.solved.dim.first{background:rgba(10,110,10,0.7);color:rgba(255,255,255,0.7)}
+.pcell.failed{background:#f00000;color:#fff}
+.pcell.pending{background:#4272f5;color:#fff;animation:ppulse 1.2s infinite}
+@keyframes ppulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.pcell.empty{background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.3)}
+
+.jq-subheader{padding:10px 15px;font-size:20px;color:#666;border-bottom:1px solid rgba(255,255,255,0.08);background:#000}
+#jq-rows{overflow-y:auto;overflow-x:hidden;position:absolute;bottom:0;width:100%}
+.jq-wrapper{transition:transform 0.5s ease,opacity 0.5s ease}
+.jq-idbar{display:flex;align-items:center;padding:4px 15px;font-size:14px;color:#555}
+
+#view-countdown{justify-content:center;align-items:center;background:radial-gradient(ellipse at center,#111 0%,#000 70%)}
+#view-countdown.active{display:flex}
+.cd-box{text-align:center}
+.cd-phase{font-size:66px;font-weight:700;letter-spacing:9px;margin-bottom:48px;color:#888}
+.cd-phase.running{color:#00e600}.cd-phase.pending{color:#5c8add}.cd-phase.frozen{color:#ffdf36}.cd-phase.ended{color:#c43a24}
+.cd-digits{display:flex;align-items:center;justify-content:center;gap:0}
+.cd-d{font-size:450px;font-weight:900;color:#fff;line-height:1;min-width:510px;text-align:center;font-variant-numeric:tabular-nums}
+.cd-col{font-size:360px;color:#555;font-weight:300;padding-bottom:30px}
+.cd-lbl{display:flex;justify-content:center;gap:0;margin-top:16px}
+.cd-lbl span{min-width:510px;text-align:center;font-size:42px;color:#666;letter-spacing:4px}
+.cd-contest{font-size:72px;font-weight:700;color:#ccc;margin-top:84px}
+
+#view-fts{justify-content:center;align-items:center;padding:30px}
+#view-fts.active{display:flex}
+.fts-wrap{text-align:center;width:100%}
+.fts-title{font-size:30px;font-weight:900;color:#fff;margin-bottom:24px}
+.fts-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:14px;max-width:1100px;margin:0 auto}
+.fts-card{background:#1a1a1a;border-radius:8px;padding:16px 20px;width:calc(33.33% - 14px);min-width:200px;text-align:center}
+.fts-card.solved{background:#0a6e0a;border:2px solid #00e600}
+.fts-prob{font-size:14px;font-weight:700;color:#5c8add;margin-bottom:4px}
+.fts-status{font-size:12px;color:#666}.fts-card.solved .fts-status{color:#8f8}
+.fts-team{font-size:15px;font-weight:700;color:#fff;margin-top:4px}
+.fts-time{font-size:11px;color:#aaa;margin-top:2px}
+
+#bot-bar{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);background:#1a1a1a;border-radius:14px;padding:4px 16px;font-size:11px;color:#666;z-index:100;pointer-events:none;display:flex;align-items:center;gap:8px}
+#bot-bar .bdot{width:5px;height:5px;border-radius:50%;background:#00e600}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#333;border-radius:2px}
+</style>
+</head>
+<body>
+
+<div class="view active" id="view-scoreboard">
+<div class="title-bar"><div class="title-bar-inner">
+<span class="clock" id="sb-clock">0:00:00</span><span class="title-text">当前排名</span><span class="remaining" id="sb-remaining">-0:00:00</span>
+</div><div class="title-bar-line"></div></div>
+<div class="col-header">
+<span class="h-rank">排名</span><span class="h-team">队伍</span><span class="h-solved">题数</span><span class="h-penalty">罚时</span>
+</div>
+<div style="overflow-y:auto;position:absolute;top:123px;bottom:0;width:100%"><div id="sb-rows"></div></div>
+</div>
+
+<div class="view" id="view-queue">
+<div class="title-bar"><div class="title-bar-inner">
+<span class="clock" id="jq-clock">0:00:00</span><span class="title-text">评测队列</span><span class="remaining" id="jq-remaining">-0:00:00</span>
+</div><div class="title-bar-line"></div></div>
+<div style="position:absolute;top:73px;left:0;width:100%;height:120px;z-index:5;background:#000">
+<div class="col-header">
+<span class="h-rank">排名</span><span class="h-team">队伍</span><span class="h-solved">题数</span><span class="h-penalty">罚时</span>
+</div>
+<div class="jq-subheader"><span id="jq-count"></span></div>
+</div>
+<div id="jq-rows" style="top:193px"></div>
+</div>
+
+<div class="view" id="view-countdown">
+<div class="cd-box"><div class="cd-phase" id="cd-phase">准备中</div>
+<div class="cd-digits"><div class="cd-d" id="cd-h">00</div><div class="cd-col">:</div><div class="cd-d" id="cd-m">00</div><div class="cd-col">:</div><div class="cd-d" id="cd-s">00</div></div>
+<div class="cd-lbl"><span>小时</span><span></span><span>分钟</span><span></span><span>秒</span></div>
+<div class="cd-contest" id="cd-title"></div></div>
+</div>
+
+<div class="view" id="view-fts">
+<div class="fts-wrap"><div class="fts-title">最快解题</div><div class="fts-grid" id="fts-grid"></div></div>
+</div>
+
+<div id="bot-bar"><span class="bdot"></span><span id="bot-text"></span></div>
+
+<script>var BASE_PATH = "__BASE_PATH__";
+var STATE_URL = BASE_PATH + "/state";
+var POLL_MS = 500;
+var VIEWS = ["scoreboard","countdown","queue","fts"];
+var curView = 0;
+var pollTimer = null;
+var timerInterval = null;
+var qSeenTimes = {};
+var qDead = {};
+var qSnapCache = {};
+var qInitialized = false;
+var QUEUE_TTL = 30000;
+var targetTime = null;
+var phase = "pending";
+var lastUpdate = 0;
+
+var fzSnap = null;
+var fzNewCounts = {};
+var fzSeenIds = {};
+
+function \u0024(id) { return document.getElementById(id); }
+function showView(name) {
+    var vs = document.querySelectorAll(".view");
+    for (var i = 0; i < vs.length; i++) vs[i].classList.remove("active");
+    var el = \u0024("view-" + name); if (el) el.classList.add("active");
+    for (var j = 0; j < VIEWS.length; j++) { if (VIEWS[j] === name) { curView = j; break; } }
+}
+document.addEventListener("keydown", function(e) {
+    var n = parseInt(e.key);
+    if (n >= 1 && n <= VIEWS.length) showView(VIEWS[n - 1]);
+    else if (e.code === "ArrowRight") { curView = (curView + 1) % VIEWS.length; showView(VIEWS[curView]); }
+    else if (e.code === "ArrowLeft") { curView = (curView - 1 + VIEWS.length) % VIEWS.length; showView(VIEWS[curView]); }
+});
+
+function esc(s) { return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function pad2(n) { return (n < 10 ? "0" : "") + n; }
+function fmtClock(secs) {
+    if (!secs || secs < 0) return "0:00:00";
+    return Math.floor(secs / 3600) + ":" + pad2(Math.floor((secs % 3600) / 60)) + ":" + pad2(Math.floor(secs % 60));
+}
+function fmtRemain(secs) {
+    if (!secs || secs <= 0) return "0:00:00";
+    return "-" + Math.floor(secs / 3600) + ":" + pad2(Math.floor((secs % 3600) / 60)) + ":" + pad2(Math.floor(secs % 60));
+}
+
+async function fetchState() {
+    try {
+        var r = await fetch(STATE_URL + "?_=" + Date.now());
+        var d = await r.json();
+        lastUpdate = Date.now();
+        renderAll(d);
+    } catch(e) { console.error(e); }
+}
+
+function updateClocks(d) {
+    var ns = Math.max(0, Math.floor((Date.now() - (d.beginAt || 0)) / 1000));
+    var rs = Math.max(0, Math.floor(((d.endAt || 0) - Date.now()) / 1000));
+    ["sb","jq"].forEach(function(p) {
+        var ce = \u0024(p + "-clock"), re = \u0024(p + "-remaining");
+        if (ce) { ce.textContent = fmtClock(ns); ce.className = "clock"; }
+        if (re) { re.textContent = fmtRemain(rs); re.className = "remaining"; }
+    });
+}
+
+function rankCls(r) { return r === 1 ? " gold" : r === 2 ? " silver" : r === 3 ? " bronze" : ""; }
+
+function cellSubCount(p) {
+    var v = (p.value || "").trim();
+    if (!v) return 0;
+    v = v.replace(/<[^>]+>/g, " ");
+    var nums = v.match(/\d+/g);
+    if (!nums) return 0;
+    var total = 0;
+    for (var ni = 0; ni < nums.length; ni++) total += parseInt(nums[ni]);
+    return total;
+}
+
+function cloneProbs(probs) {
+    return (probs || []).map(function(p) {
+        return { score: p.score, solved: p.solved, value: p.value, raw: p.raw };
+    });
+}
+
+function parseCell(p) {
+    var v = (p.value || "").trim();
+    if (!v) return "pcell empty||";
+    if (p.solved) {
+        var parts = v.split("\n");
+        var t1 = (parts[0] || "").replace(/<[^>]+>/g, "").replace(/[^0-9]/g, "");
+        var tm = parts[1] || "";
+        return "pcell solved|" + (t1 || "1") + "/" + tm + "|";
+    }
+    if (v.indexOf("orange") >= 0 || v.indexOf("+") >= 0) {
+        var m = v.match(/\+(\d+)/);
+        return "pcell pending|" + (m ? m[1] : "0") + "\u003F|";
+    }
+    var m2 = v.match(/(\d+)/);
+    return "pcell failed|-" + (m2 ? m2[1] : "0") + "|";
+}
+
+function probHtml(problems, probH, fsSm, hiIdx, isQueue, pendVal, ftsFirst, rowUid) {
+    var n = problems.length, h = "";
+    for (var i = 0; i < n; i++) {
+        var p = problems[i];
+        var parsed = parseCell(p).split("|");
+        var cls = parsed[0], txt = parsed[1];
+        if (isQueue && i === hiIdx && pendVal) {
+            cls = "pcell pending";
+            txt = typeof pendVal === "number" ? "\u003F" + pendVal : "\u003F";
+        }
+        if (!isQueue && pendVal && pendVal[i]) {
+            var v = pendVal[i];
+            cls = "pcell pending";
+            txt = typeof v === "number" ? "\u003F" + v : "\u003F";
+        }
+        if (cls.indexOf("solved") >= 0 && ftsFirst && ftsFirst[i] === rowUid) {
+            cls += " first";
+        }
+        if (isQueue && i !== hiIdx && p.solved) cls = "pcell solved dim";
+        h += "<span class=\"" + cls + "\" style=\"flex:1;height:" + probH + "px;font-size:" + fsSm + "px;max-width:" + (Math.floor(100/n)+2) + "%\"><span class=\"pclabel\">" + txt + "</span></span>";
+    }
+    return h;
+}
+
+function fzTotal(key) {
+    return (fzSnap.counts[key] || 0) + (fzNewCounts[key] || 0);
+}
+
+// ===== Scoreboard =====
+function renderScoreboard(d, isFz) {
+    var rows = d.scoreboard;
+    var avail = window.innerHeight - 128;
+    var rh = Math.max(56, Math.min(90, Math.floor(avail / Math.max(rows.length, 12))));
+    var ph = Math.floor(rh * 0.38), fs = Math.max(22, Math.min(30, Math.floor(rh * 0.45)));
+    var fss = Math.max(16, Math.min(22, Math.floor(rh * 0.35))), html = "";
+
+    var ftsFirst = {};
+    for (var fi = 0; fi < d.fts.length; fi++) {
+        if (d.fts[fi].solved && d.fts[fi].uid != null) ftsFirst[fi] = d.fts[fi].uid;
+    }
+
+    var sbPendMap = {};
+    if (isFz && fzSnap) {
+        for (var fk in fzNewCounts) {
+            if (fzNewCounts.hasOwnProperty(fk) && fzNewCounts[fk] > 0) {
+                var parts = fk.split("_");
+                var uid = parseInt(parts[0]);
+                var pi = parseInt(parts[1]);
+                if (!(fzSnap.solved[uid] && fzSnap.solved[uid][pi])) {
+                    if (!sbPendMap[uid]) sbPendMap[uid] = {};
+                    sbPendMap[uid][pi] = fzTotal(fk) || 1;
+                }
+            }
+        }
+    } else {
+        for (var qi = 0; qi < d.queue.length; qi++) {
+            var qp = d.queue[qi];
+            if (qp.isPending && qp.submitProbIdx >= 0) {
+                if (!sbPendMap[qp.uid]) sbPendMap[qp.uid] = {};
+                sbPendMap[qp.uid][qp.submitProbIdx] = true;
+            }
+        }
+    }
+
+    for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        html += "<div class=\"t-row\">";
+        html += "<div class=\"tr-top\" style=\"height:" + Math.floor(rh * 0.55) + "px;font-size:" + fs + "px\">";
+        html += "<span class=\"r-rank" + rankCls(r.rank) + "\">" + (r.rank || "") + "</span>";
+        html += "<span class=\"r-name\">" + esc(r.name) + (r.school ? "<span class=\"r-school\">" + esc(r.school) + "</span>" : "") + "</span>";
+        html += "<span class=\"r-solved\">" + (r.solved > 0 ? r.solved : "") + "</span>";
+        html += "<span class=\"r-penalty\">" + (r.penalty && r.penalty !== "0:00" ? r.penalty : "") + "</span>";
+        html += "</div>";
+        html += "<div class=\"tr-bot\" style=\"height:" + Math.floor(rh * 0.45) + "px\">";
+        html += "<span class=\"r-probs\">" + probHtml(r.problems || [], ph, fss, -1, false, sbPendMap[r.uid] || null, ftsFirst, r.uid) + "</span>";
+        html += "</div></div>";
+    }
+    \u0024("sb-rows").innerHTML = html || "<div style=\"color:#666;text-align:center;padding:40px\">\u6682\u65e0\u6570\u636e</div>";
+}
+
+// ===== Queue =====
+function renderQueue(d, isFz) {
+    if (isFz) {
+        \u0024("jq-count").textContent = "\u5c01\u699c\u4e2d";
+        \u0024("jq-rows").innerHTML = "<div style=\"color:#666;text-align:center;padding:80px;font-size:20px\">\u5c01\u699c\u4e2d\uff0c\u8bc4\u6d4b\u961f\u5217\u5df2\u7981\u7528</div>";
+        return;
+    }
+
+    var ftsFirst = {};
+    for (var fi = 0; fi < d.fts.length; fi++) {
+        if (d.fts[fi].solved && d.fts[fi].uid != null) ftsFirst[fi] = d.fts[fi].uid;
+    }
+
+    var qq = d.queue, now = Date.now();
+    for (var i = 0; i < qq.length; i++) {
+        var qi = qq[i];
+        if (!qSeenTimes[qi.id] && !qDead[qi.id]) { if (qi.isPending) { qSeenTimes[qi.id] = now; } else if (!qInitialized) { qDead[qi.id] = true; } }
+        // Snapshot problem cells on first appearance
+        if (!qSnapCache[qi.id]) qSnapCache[qi.id] = cloneProbs(qi.problems);
+    }
+    var ks = Object.keys(qSeenTimes);
+    for (var ki = 0; ki < ks.length; ki++) {
+        if (now - qSeenTimes[ks[ki]] > QUEUE_TTL) {
+            qDead[ks[ki]] = true;
+            delete qSeenTimes[ks[ki]];
+            delete qSnapCache[ks[ki]];
+        }
+    }
+    var vis = [];
+    for (var vi = 0; vi < qq.length; vi++) {
+        if (qSeenTimes.hasOwnProperty(qq[vi].id) && !qDead[qq[vi].id]) vis.push(qq[vi]);
+    }
+    vis = vis.slice(0, 20).reverse();
+    var dk = Object.keys(qDead);
+    if (dk.length > 200) { for (var dd = 0; dd < dk.length - 200; dd++) delete qDead[dk[dd]]; }
+
+    \u0024("jq-count").textContent = "\u8bc4\u6d4b\u961f\u5217 \u00b7 " + vis.length + " \u6761";
+
+    var avail = window.innerHeight - 178;
+    var rh = Math.max(56, Math.min(90, Math.floor(avail / 12)));
+    var ph = Math.floor(rh * 0.38), fs = Math.max(22, Math.min(30, Math.floor(rh * 0.45)));
+    var fss = Math.max(16, Math.min(22, Math.floor(rh * 0.35))), idh = 12, html = "";
+
+    html += "<div style=\"min-height:" + (vis.length * (rh + idh)) + "px;position:relative\">";
+    for (var vj = 0; vj < vis.length; vj++) {
+        var q = vis[vj], age = now - qSeenTimes[q.id];
+        var op = age > (QUEUE_TTL - 3000) ? Math.max(0, (QUEUE_TTL - age) / 3000) : 1;
+        var top = vj * (rh + idh);
+
+        // Use cached snapshot for this submission (frozen on first appearance)
+        var qProbs = qSnapCache[q.id] || cloneProbs(q.problems);
+
+        html += "<div class=\"jq-wrapper\" style=\"position:absolute;top:" + top + "px;width:100%;opacity:" + op.toFixed(2) + "\">";
+        html += "<div class=\"t-row\">";
+        html += "<div class=\"tr-top\" style=\"height:" + Math.floor(rh * 0.55) + "px;font-size:" + fs + "px\">";
+        html += "<span class=\"r-rank" + rankCls(q.rank) + "\">" + (q.rank || "") + "</span>";
+        html += "<span class=\"r-name\">" + esc(q.teamName) + (q.school ? "<span class=\"r-school\">" + esc(q.school) + "</span>" : "") + "</span>";
+        html += "<span class=\"r-solved\">" + (q.solved > 0 ? q.solved : "") + "</span>";
+        html += "<span class=\"r-penalty\">" + (q.penalty && q.penalty !== "0:00" ? q.penalty : "") + "</span>";
+        html += "</div>";
+        html += "<div class=\"tr-bot\" style=\"height:" + Math.floor(rh * 0.45) + "px\">";
+        html += "<span class=\"r-probs\">" + probHtml(qProbs, ph, fss, q.submitProbIdx, true, q.isPending, ftsFirst, q.uid) + "</span>";
+        html += "</div></div>";
+        html += "<div class=\"jq-idbar\"><span>\u0023" + (q.id || "").substring(0, 10) + "</span></div>";
+        html += "</div>";
+    }
+    html += "</div>";
+    \u0024("jq-rows").innerHTML = html || "<div style=\"color:#666;text-align:center;padding:40px\">\u6682\u65e0\u8bb0\u5f55</div>";
+    qInitialized = true;
+}
+
+function renderCountdown(d) {
+    \u0024("cd-title").textContent = d.title;
+    var ph = \u0024("cd-phase"); ph.className = "cd-phase";
+    if (phase === "pending") { ph.textContent = "\u8ddd\u79bb\u6bd4\u8d5b\u5f00\u59cb"; ph.classList.add("pending"); }
+    else if (phase === "running") { ph.textContent = "\u8ddd\u79bb\u6bd4\u8d5b\u7ed3\u675f"; ph.classList.add("running"); }
+    else if (phase === "frozen") { ph.textContent = "\u5c01\u699c \u00b7 \u8ddd\u79bb\u6bd4\u8d5b\u7ed3\u675f"; ph.classList.add("frozen"); }
+    else if (phase === "ended") { ph.textContent = "\u6bd4\u8d5b\u5df2\u7ed3\u675f"; ph.classList.add("ended"); }
+}
+function updateTimerDisplay() {
+    if (phase === "ended" || !targetTime) { \u0024("cd-h").textContent = "00"; \u0024("cd-m").textContent = "00"; \u0024("cd-s").textContent = "00"; return; }
+    var diff = Math.max(0, targetTime - Date.now());
+    \u0024("cd-h").textContent = pad2(Math.floor(diff / 3600000));
+    \u0024("cd-m").textContent = pad2(Math.floor((diff % 3600000) / 60000));
+    \u0024("cd-s").textContent = pad2(Math.floor((diff % 60000) / 1000));
+}
+
+function renderFTS(d) {
+    if (phase === "frozen") {
+        \u0024("fts-grid").innerHTML = "<div style=\"color:#666;text-align:center;padding:80px;font-size:20px\">\u5c01\u699c\u4e2d\uff0c\u6700\u5feb\u89e3\u9898\u5df2\u7981\u7528</div>";
+        return;
+    }
+    var fts = d.fts, titles = d.probTitles, html = "";
+    for (var i = 0; i < fts.length; i++) {
+        var f = fts[i], label = String.fromCharCode(65 + i);
+        html += "<div class=\"fts-card" + (f.solved ? " solved" : "") + "\">";
+        html += "<div class=\"fts-prob\">" + label + ". " + esc(titles[i] || ("\u9898\u76ee" + label)) + "</div>";
+        if (f.solved) {
+            html += "<div class=\"fts-status\">\u5df2\u89e3\u51b3</div><div class=\"fts-team\">" + esc(f.teamName) + "</div>";
+            html += "<div class=\"fts-time\">" + f.time + " \u5206\u949f</div>";
+        } else { html += "<div class=\"fts-status\">\u5f85\u89e3\u51b3</div>"; }
+        html += "</div>";
+    }
+    \u0024("fts-grid").innerHTML = html;
+}
+
+function renderAll(d) {
+    if (!d || !d.title) return;
+    var wasFz = phase === "frozen";
+    phase = d.phase; targetTime = d.targetTime;
+    var isFz = phase === "frozen";
+
+    if (isFz && !wasFz) {
+        fzSnap = { solved: {}, counts: {}, ranks: {}, problems: {}, fts: d.fts };
+        fzNewCounts = {};
+        fzSeenIds = {};
+        for (var qi = 0; qi < d.queue.length; qi++) {
+            fzSeenIds[d.queue[qi].id] = true;
+        }
+        for (var si = 0; si < d.scoreboard.length; si++) {
+            var row = d.scoreboard[si];
+            fzSnap.ranks[row.uid] = { rank: row.rank, solved: row.solved, penalty: row.penalty };
+            fzSnap.solved[row.uid] = {};
+            fzSnap.problems[row.uid] = cloneProbs(row.problems);
+            var probs = row.problems || [];
+            for (var pi = 0; pi < probs.length; pi++) {
+                var p = probs[pi];
+                if (p.solved) fzSnap.solved[row.uid][pi] = true;
+                fzSnap.counts[row.uid + "_" + pi] = cellSubCount(p);
+            }
+        }
+    }
+
+    if (isFz && fzSnap) {
+        for (var qi2 = 0; qi2 < d.queue.length; qi2++) {
+            var q = d.queue[qi2];
+            if (q.submitProbIdx >= 0 && !fzSeenIds[q.id]) {
+                fzSeenIds[q.id] = true;
+                var key = q.uid + "_" + q.submitProbIdx;
+                if (!(fzSnap.solved[q.uid] && fzSnap.solved[q.uid][q.submitProbIdx])) {
+                    fzNewCounts[key] = (fzNewCounts[key] || 0) + 1;
+                }
+            }
+        }
+        for (var si2 = 0; si2 < d.scoreboard.length; si2++) {
+            var r2 = d.scoreboard[si2];
+            var snap = fzSnap.ranks[r2.uid];
+            if (snap) {
+                r2.rank = snap.rank; r2.solved = snap.solved; r2.penalty = snap.penalty;
+                r2.problems = cloneProbs(fzSnap.problems[r2.uid]);
+                var fzp = r2.problems;
+                for (var pi2 = 0; pi2 < fzp.length; pi2++) {
+                    if (!(fzSnap.solved[r2.uid] && fzSnap.solved[r2.uid][pi2])) {
+                        fzp[pi2].solved = false;
+                    }
+                }
+            }
+        }
+    }
+
+    if (!isFz) { fzSnap = null; fzNewCounts = {}; fzSeenIds = {}; }
+
+    renderScoreboard(d, isFz);
+    renderQueue(d, isFz);
+    if (isFz && fzSnap) d.fts = fzSnap.fts;
+    renderFTS(d);
+    renderCountdown(d);
+    updateClocks(d); updateTimerDisplay();
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(function() { updateClocks(d); updateTimerDisplay(); }, 250);
+    updateBotBar();
+}
+
+function updateBotBar() {
+    \u0024("bot-text").textContent = "\u5b9e\u65f6\u66f4\u65b0 \u00b7 " + Math.floor((Date.now() - lastUpdate) / 1000) + "\u79d2\u524d\u5237\u65b0";
+}
+setInterval(updateBotBar, 3000);
+
+async function init() { await fetchState(); pollTimer = setInterval(fetchState, POLL_MS); }
+init();
+</script>
+</body>
+</html>
