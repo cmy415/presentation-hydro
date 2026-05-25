@@ -22,12 +22,19 @@ hydrooj addon add /root/xxx
 
 ## 使用
 
-安装完成后，访问比赛即可使用演示页面：
+安装完成后，访问 `/d/{domainId}/contest/{tid}/presentation` 即可打开演示页面。
 
-- **演示页**：`/d/{domainId}/contest/{tid}/presentation`
-- **状态接口**：`/d/{domainId}/contest/{tid}/presentation/state`
+### 按键切换
 
-将演示页全屏投屏到比赛现场大屏即可实时展示比赛动态。
+演示页面支持键盘快捷切换不同视图：
+
+| 按键 | 操作 |
+|------|------|
+| `1` | 切换到排行榜 |
+| `2` | 切换到倒计时 |
+| `3` | 切换到评测队列 |
+| `4` | 切换到首杀（FTS） |
+| `←` / `→` | 上一个 / 下一个视图 |
 
 ## 页面说明
 
