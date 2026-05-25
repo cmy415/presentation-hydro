@@ -18,6 +18,9 @@ yarn global add /root/xxx
 
 # 注册为 Hydro OJ 插件
 hydrooj addon add /root/xxx
+
+# 重启 Hydro OJ
+pm2 restart hydrooj
 ```
 
 ## 使用
