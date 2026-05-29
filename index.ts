@@ -75,6 +75,15 @@ export function apply(ctx: Context) {
                 }
             }
 
+            // Enrich udict with full user info (displayName)
+            const uids = Object.keys(udict).map(Number).filter(Boolean);
+            if (uids.length) {
+                const fullUd = await UserModel.getList(domainId, uids);
+                for (const uid of uids) {
+                    if (fullUd[uid]) udict[uid] = { ...udict[uid], ...fullUd[uid] };
+                }
+            }
+
             // Filter: first row is header, skip unranked
             const ranked = rows.slice(1).filter((r: any) => {
                 const raw = r.find((c: any) => c.type === "user")?.raw;
