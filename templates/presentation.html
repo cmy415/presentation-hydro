@@ -203,7 +203,7 @@ function parseCell(p) {
         var parts = v.split("\n");
         var t1 = (parts[0] || "").replace(/<[^>]+>/g, "").replace(/[^0-9]/g, "");
         var tm = parts[1] || "";
-        return "pcell solved|" + (t1 || "1") + "/" + tm + "|";
+        return "pcell solved|" + (t1 || "0") + "/" + tm + "|";
     }
     if (v.indexOf("orange") >= 0 || v.indexOf("+") >= 0) {
         var m = v.match(/\+(\d+)/);
